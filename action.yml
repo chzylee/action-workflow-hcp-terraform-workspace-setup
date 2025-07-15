@@ -12,6 +12,9 @@ inputs:
   tfc_workspace:
     description: 'HCP Terraform workspace name'
     required: true
+  tfc_project:
+    description: 'HCP Terraform project ID to associate with the workspace'
+    required: true
   tfc_token:
     description: 'HCP Terraform API token'
     required: true
