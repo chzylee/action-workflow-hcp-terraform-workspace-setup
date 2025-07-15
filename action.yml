@@ -3,7 +3,8 @@ description: Checks for a Terraform Cloud workspace, creates it if missing, and 
 inputs:
   tfc_hostname:
     description: 'HCP Terraform hostname (default: https://app.terraform.io)'
-    required: true
+    required: false
+    default: 'app.terraform.io'
   tfc_organization:
     description: 'HCP Terraform organization name'
     required: true
