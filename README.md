@@ -23,6 +23,7 @@ jobs:
       tfc_workspace: 'your-workspace'
       tfc_project: 'project-id'
       tfc_token: ${{ secrets.TF_API_TOKEN }}
+      var_set_ids: 'id1,id2'
 ```
 
 ### Inputs
@@ -32,7 +33,8 @@ jobs:
 | tfc_hostname     | Terraform Cloud hostname          | Yes      | `app.terraform.io` |
 | tfc_organization | Terraform Cloud organization name | Yes      | `my-org`           |
 | tfc_workspace    | Terraform Cloud workspace name    | Yes      | `my-workspace`     |
-| tfc_project      | Terraform Cloud workspace name    | Yes      | `prj-abcd`         |
-| tfc_token        | Terraform Cloud workspace name    | Yes      | `my-workspace`     |
+| tfc_project      | Terraform Cloud project ID        | Yes      | `prj-abcd`         |
+| tfc_token        | Terraform Cloud API token         | Yes      | `secret`           |
+| var_set_ids      | Terraform Cloud variable set ID   | No       | `varset-abcd`      |
 
 ---
