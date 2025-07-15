@@ -1,45 +1,55 @@
 name: 'HCP Terraform Workspace Setup'
-description: 'Create/update a workspace in HCP Terraform with necessary relationships.'
-
+description: Checks for a Terraform Cloud workspace, creates it if missing, and associates variable sets with it.
 inputs:
   tfc_hostname:
     description: 'HCP Terraform hostname (default: https://app.terraform.io)'
-    required: false
-    default: 'app.terraform.io'
+    required: true
   tfc_organization:
     description: 'HCP Terraform organization name'
     required: true
   tfc_workspace:
     description: 'HCP Terraform workspace name'
     required: true
-  tfc_project:
+  tfc_project_id:
     description: 'HCP Terraform project ID to associate with the workspace'
     required: true
   tfc_token:
     description: 'HCP Terraform API token'
     required: true
+  var_set_ids:
+    description: Comma-separated list of variable set IDs
+    required: false
+    default: ''
+
+outputs:
+  workspace_id:
+    description: The ID of the created or existing workspace
+    value: ${{ steps.ensure_workspace.outputs.workspace_id }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Ensure HCP Terraform Workspace Exists and Create if Not
+    - name: Create workspace if it does not exist and extract ID
+      id: ensure_workspace
       shell: bash
       env:
+        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
         TFC_ORG: ${{ inputs.tfc_organization }}
         TFC_WORKSPACE: ${{ inputs.tfc_workspace }}
         TFC_TOKEN: ${{ inputs.tfc_token }}
-        TFC_PROJECT_ID: ${{ inputs.tfc_project }}
+        TFC_PROJECT_ID: ${{ inputs.tfc_project_idx }}
       run: |
-        echo "Checking if workspace '$TFC_WORKSPACE' exists in org '$TFC_ORG'..."
+        set -e
 
+        echo "Checking if workspace '$TFC_WORKSPACE' exists in org '$TFC_ORG'..."
         response=$(curl -s -o response.json -w "%{http_code}" \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
-          "https://app.terraform.io/api/v2/organizations/$TFC_ORG/workspaces/$TFC_WORKSPACE")
+          "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/workspaces/$TFC_WORKSPACE")
 
         if [ "$response" = "404" ]; then
           echo "Workspace not found. Creating workspace '$TFC_WORKSPACE'..."
-          curl -s \
+          create_response=$(curl -s \
             --header "Authorization: Bearer $TFC_TOKEN" \
             --header "Content-Type: application/vnd.api+json" \
             --request POST \
@@ -59,12 +69,54 @@ runs:
                 }
               }
             }' \
-            "https://app.terraform.io/api/v2/organizations/$TFC_ORG/workspaces"
-          echo "Workspace created."
+            "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/workspaces")
+
+          workspace_id=$(echo "$create_response" | grep -o '"id":"[^"]*' | head -n1 | cut -d':' -f2 | tr -d '"')
+          echo "Workspace created with ID: $workspace_id"
         elif [ "$response" = "200" ]; then
           echo "Workspace already exists."
+          workspace_id=$(cat response.json | grep -o '"id":"[^"]*' | head -n1 | cut -d':' -f2 | tr -d '"')
         else
           echo "Unexpected response: HTTP $response"
           cat response.json
           exit 1
         fi
+
+        echo "workspace_id=$workspace_id" >> "$GITHUB_OUTPUT"
+
+    - name: Associate variable sets with workspace
+      shell: bash
+      env:
+        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
+        TFC_TOKEN: ${{ inputs.tfc_token }}
+      run: |
+        set -e
+        if [ -z "${{ inputs.var_set_ids }}" ]; then
+          echo "No variable set IDs provided. Skipping association step."
+          exit 0
+        fi
+
+        workspace_id="${{ steps.ensure_workspace.outputs.workspace_id }}"
+        IFS=',' read -ra VARSET_IDS <<< "${{ inputs.var_set_ids }}"
+        for raw_id in "${VARSET_IDS[@]}"; do
+          VARSET_ID=$(echo "$raw_id" | xargs) # trim whitespace
+          echo "Associating variable set $VARSET_ID with workspace $workspace_id"
+
+          curl -s -X POST \
+            -H "Authorization: Bearer $TFC_TOKEN" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d '{
+              "data": {
+                "type": "variable-set-relationships",
+                "relationships": {
+                  "workspace": {
+                    "data": {
+                      "type": "workspaces",
+                      "id": "'"$workspace_id"'"
+                    }
+                  }
+                }
+              }
+            }' \
+            "https://$TFC_HOSTNAME/api/v2/variable-sets/${VARSET_ID}/relationships/workspaces"
+        done
