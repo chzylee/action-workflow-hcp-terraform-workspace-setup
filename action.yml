@@ -17,10 +17,6 @@ inputs:
   tfc_token:
     description: 'HCP Terraform API token'
     required: true
-  var_set_ids:
-    description: Comma-separated list of variable set IDs
-    required: false
-    default: ''
 
 outputs:
   workspace_id:
@@ -84,40 +80,3 @@ runs:
         fi
 
         echo "workspace_id=$workspace_id" >> "$GITHUB_OUTPUT"
-
-    - name: Associate variable sets with workspace
-      shell: bash
-      env:
-        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
-        TFC_TOKEN: ${{ inputs.tfc_token }}
-      run: |
-        set -e
-        if [ -z "${{ inputs.var_set_ids }}" ]; then
-          echo "No variable set IDs provided. Skipping association step."
-          exit 0
-        fi
-
-        workspace_id="${{ steps.ensure_workspace.outputs.workspace_id }}"
-        IFS=',' read -ra VARSET_IDS <<< "${{ inputs.var_set_ids }}"
-        for raw_id in "${VARSET_IDS[@]}"; do
-          VARSET_ID=$(echo "$raw_id" | xargs) # trim whitespace
-          echo "Associating variable set $VARSET_ID with workspace $workspace_id"
-
-          curl -s -X POST \
-            -H "Authorization: Bearer $TFC_TOKEN" \
-            -H "Content-Type: application/vnd.api+json" \
-            -d '{
-              "data": {
-                "type": "variable-set-relationships",
-                "relationships": {
-                  "workspace": {
-                    "data": {
-                      "type": "workspaces",
-                      "id": "'"$workspace_id"'"
-                    }
-                  }
-                }
-              }
-            }' \
-            "https://$TFC_HOSTNAME/api/v2/variable-sets/${VARSET_ID}/relationships/workspaces"
-        done

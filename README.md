@@ -1,8 +1,10 @@
 # action-workflow-hcp-terraform-workspace
 
+Reusable Workflow for GitHub Actions to ensure an HCP Terraform workspace exists and create the workspace if it does not exist.
+
 ## Usage
 
-Use this action in a GitHub Action pipeline to create/update an HCP Terraform workspace. Follow the example below to see how to use this action in a GitHub Action.
+Use this action in a GitHub Action pipeline to setup a HCP Terraform workspace. Follow the example below to see how to use this action in a GitHub Action.
 
 ### Example
 
@@ -23,7 +25,6 @@ jobs:
       tfc_workspace: 'your-workspace'
       tfc_project: 'project-id'
       tfc_token: ${{ secrets.TF_API_TOKEN }}
-      var_set_ids: 'id1,id2'
 ```
 
 ### Inputs
@@ -35,6 +36,5 @@ jobs:
 | tfc_workspace    | Terraform Cloud workspace name    | Yes      | `my-workspace`     |
 | tfc_project      | Terraform Cloud project ID        | Yes      | `prj-abcd`         |
 | tfc_token        | Terraform Cloud API token         | Yes      | `secret`           |
-| var_set_ids      | Terraform Cloud variable set ID   | No       | `varset-abcd`      |
 
 ---
