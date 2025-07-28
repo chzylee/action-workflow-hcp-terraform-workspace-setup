@@ -18,7 +18,7 @@ on:
 
 jobs:
   deploy:
-    uses: chzylee/action-workflow-hcp-terraform-workspace-setup@v1.1.1
+    uses: chzylee/action-workflow-hcp-terraform-workspace-setup@v1.0.0
     with:
       tfc_hostname: 'app.terraform.io'
       tfc_organization: 'your-tfc-org'
