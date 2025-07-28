@@ -12,8 +12,8 @@ inputs:
   tfc_workspace:
     description: 'HCP Terraform workspace name'
     required: true
-  tfc_project_id:
-    description: 'HCP Terraform project ID to associate with the workspace'
+  tfc_project:
+    description: 'HCP Terraform project name to associate with the workspace'
     required: true
   tfc_token:
     description: 'HCP Terraform API token'
@@ -27,6 +27,36 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Lookup Project ID from Project Name
+      id: get_project_id
+      shell: bash
+      env:
+        TFC_HOSTNAME: ${{ inputs.tfc_hostname }}
+        TFC_ORG: ${{ inputs.tfc_organization }}
+        TFC_PROJECT_NAME: ${{ inputs.tfc_project }}
+        TFC_TOKEN: ${{ inputs.tfc_token }}
+      run: |
+        echo "🔍 Fetching project ID for project '$TFC_PROJECT_NAME' in org '$TFC_ORG'..."
+
+        PROJECTS_URL="https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/projects"
+
+        response=$(curl -sS \
+          --header "Authorization: Bearer $TFC_TOKEN" \
+          --header "Content-Type: application/vnd.api+json" \
+          "$PROJECTS_URL")
+
+        project_id=$(echo "$response" | jq -r \
+          --arg NAME "$TFC_PROJECT_NAME" \
+          '.data[] | select(.attributes.name == $NAME) | .id')
+
+        if [[ -z "$project_id" || "$project_id" == "null" ]]; then
+          echo "❌ Project '$TFC_PROJECT_NAME' not found."
+          exit 1
+        fi
+
+        echo "✅ Found project ID: $project_id"
+        echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
+
     - name: Ensure Workspace Exists and Extract ID
       id: ensure_workspace
       shell: bash
@@ -35,7 +65,7 @@ runs:
         TFC_ORG: ${{ inputs.tfc_organization }}
         TFC_WORKSPACE: ${{ inputs.tfc_workspace }}
         TFC_TOKEN: ${{ inputs.tfc_token }}
-        TFC_PROJECT_ID: ${{ inputs.tfc_project_id }}
+        TFC_PROJECT_ID: ${{ steps.get_project_id.outputs.project_id }}
       run: |
         set -e
 
