@@ -23,7 +23,7 @@ jobs:
       tfc_hostname: 'app.terraform.io'
       tfc_organization: 'your-tfc-org'
       tfc_workspace: 'your-workspace'
-      tfc_project: 'project-id'
+      tfc_project: 'project-name'
       tfc_token: ${{ secrets.TF_API_TOKEN }}
 ```
 
@@ -34,7 +34,7 @@ jobs:
 | tfc_hostname     | Terraform Cloud hostname          | Yes      | `app.terraform.io` |
 | tfc_organization | Terraform Cloud organization name | Yes      | `my-org`           |
 | tfc_workspace    | Terraform Cloud workspace name    | Yes      | `my-workspace`     |
-| tfc_project      | Terraform Cloud project ID        | Yes      | `prj-abcd`         |
+| tfc_project      | Terraform Cloud project name      | Yes      | `my-infra-proj`    |
 | tfc_token        | Terraform Cloud API token         | Yes      | `secret`           |
 
 ---
