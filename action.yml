@@ -1,5 +1,6 @@
 name: 'HCP Terraform Workspace Setup'
 description: Checks for a Terraform Cloud workspace, creates it if missing, and associates variable sets with it.
+
 inputs:
   tfc_hostname:
     description: 'HCP Terraform hostname (default: https://app.terraform.io)'
@@ -26,7 +27,7 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Create workspace if it does not exist and extract ID
+    - name: Ensure Workspace Exists and Extract ID
       id: ensure_workspace
       shell: bash
       env:
@@ -34,48 +35,58 @@ runs:
         TFC_ORG: ${{ inputs.tfc_organization }}
         TFC_WORKSPACE: ${{ inputs.tfc_workspace }}
         TFC_TOKEN: ${{ inputs.tfc_token }}
-        TFC_PROJECT_ID: ${{ inputs.tfc_project_idx }}
+        TFC_PROJECT_ID: ${{ inputs.tfc_project_id }}
       run: |
         set -e
 
-        echo "Checking if workspace '$TFC_WORKSPACE' exists in org '$TFC_ORG'..."
-        response=$(curl -s -o response.json -w "%{http_code}" \
+        echo "🔍 Checking if workspace '$TFC_WORKSPACE' exists in organization '$TFC_ORG'..."
+
+        WORKSPACE_URL="https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/workspaces/$TFC_WORKSPACE"
+        response_code=$(curl -sS -o workspace_response.json -w "%{http_code}" \
           --header "Authorization: Bearer $TFC_TOKEN" \
           --header "Content-Type: application/vnd.api+json" \
-          "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/workspaces/$TFC_WORKSPACE")
+          "$WORKSPACE_URL")
 
-        if [ "$response" = "404" ]; then
-          echo "Workspace not found. Creating workspace '$TFC_WORKSPACE'..."
-          create_response=$(curl -s \
-            --header "Authorization: Bearer $TFC_TOKEN" \
-            --header "Content-Type: application/vnd.api+json" \
-            --request POST \
-            --data '{
-              "data": {
-                "type": "workspaces",
-                "attributes": {
-                  "name": "'"$TFC_WORKSPACE"'"
+        if [[ "$response_code" == "404" ]]; then
+          echo "🆕 Workspace not found. Creating workspace '$TFC_WORKSPACE'..."
+
+          payload=$(jq -n \
+            --arg name "$TFC_WORKSPACE" \
+            --arg project_id "$TFC_PROJECT_ID" \
+            '{
+              data: {
+                type: "workspaces",
+                attributes: {
+                  name: $name
                 },
-                "relationships": {
-                  "project": {
-                    "data": {
-                      "id": "'"$TFC_PROJECT_ID"'",
-                      "type": "projects"
+                relationships: {
+                  project: {
+                    data: {
+                      id: $project_id,
+                      type: "projects"
                     }
                   }
                 }
               }
-            }' \
+            }')
+
+          create_response=$(curl -sS \
+            --header "Authorization: Bearer $TFC_TOKEN" \
+            --header "Content-Type: application/vnd.api+json" \
+            --request POST \
+            --data "$payload" \
             "https://$TFC_HOSTNAME/api/v2/organizations/$TFC_ORG/workspaces")
 
-          workspace_id=$(echo "$create_response" | grep -o '"id":"[^"]*' | head -n1 | cut -d':' -f2 | tr -d '"')
-          echo "Workspace created with ID: $workspace_id"
-        elif [ "$response" = "200" ]; then
-          echo "Workspace already exists."
-          workspace_id=$(cat response.json | grep -o '"id":"[^"]*' | head -n1 | cut -d':' -f2 | tr -d '"')
+          workspace_id=$(echo "$create_response" | jq -r '.data.id')
+          echo "✅ Workspace created with ID: $workspace_id"
+
+        elif [[ "$response_code" == "200" ]]; then
+          echo "✅ Workspace already exists."
+          workspace_id=$(jq -r '.data.id' < workspace_response.json)
+          echo "🔎 Existing workspace ID: $workspace_id"
         else
-          echo "Unexpected response: HTTP $response"
-          cat response.json
+          echo "❌ Unexpected response (HTTP $response_code)"
+          cat workspace_response.json
           exit 1
         fi
 
